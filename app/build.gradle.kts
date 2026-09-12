@@ -36,8 +36,20 @@ android {
 }
 
 dependencies {
-    // Dependency Compose (BOM + activity-compose + navigation-compose) akan
-    // ditambahkan pada langkah berikutnya (penulisan App Host: MainActivity,
-    // NavigationHost, Bottom Navigation) setelah versi androidx.activity dan
-    // androidx.navigation terkini diverifikasi resmi.
+    // Compose BOM — versi tunggal dikunci di root (molinaxComposeBom = 2026.08.00),
+    // cocok dengan compileSdk 37 (verifikasi: Jetpack Compose August '26 release notes)
+    implementation(platform("androidx.compose:compose-bom:${rootProject.extra["molinaxComposeBom"]}"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Activity + Compose entry point (stable — developer.android.com/jetpack/androidx/releases/activity)
+    implementation("androidx.activity:activity-compose:1.13.0")
+
+    // Navigation 3 (stable — developer.android.com/jetpack/androidx/releases/navigation3)
+    implementation("androidx.navigation3:navigation3-runtime:1.1.7")
+    implementation("androidx.navigation3:navigation3-ui:1.1.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-navigation3:2.10.0")
 }
