@@ -21,15 +21,15 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      # Persiapan untuk Phase 1+ (belum dipakai build Phase 0, tapi disiapkan
-      # sekarang supaya tidak perlu ulang setup saat modul app/ dibuat).
-      - name: Install Android NDK 28.2.13676358 + Build-Tools 36.0.0 + Platform 37
+      - name: Accept SDK licenses
         run: |
           yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
-            "ndk;28.2.13676358" \
-            "build-tools;36.0.0" \
-            "platforms;android-37"
+
+      # Diagnostik sementara: tampilkan nama paket persis yang tersedia untuk
+      # API 35/36/37 dan NDK 28.x, sebelum kita kunci identifier final.
+      - name: Diagnose available SDK packages
+        run: |
+          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --list --channel=3 2>/dev/null | grep -iE "platforms;android-3[5-7]|ndk;28|build-tools;3[5-7]" || true
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
