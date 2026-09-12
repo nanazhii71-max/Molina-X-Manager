@@ -1,0 +1,38 @@
+name: Build Verify
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # Persiapan untuk Phase 1+ (belum dipakai build Phase 0, tapi disiapkan
+      # sekarang supaya tidak perlu ulang setup saat modul app/ dibuat).
+      - name: Install Android NDK 28.2.13676358 + Build-Tools 36.0.0 + Platform 37
+        run: |
+          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;28.2.13676358" \
+            "build-tools;36.0.0" \
+            "platforms;android-37"
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Verify Gradle sync (Phase 0)
+        run: ./gradlew tasks --stacktrace
