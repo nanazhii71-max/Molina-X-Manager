@@ -16,6 +16,11 @@ dependencyResolutionManagement {
 
 rootProject.name = "MolinaXManager"
 
-// Modul ditambahkan bertahap sesuai FASE IMPLEMENTASI di
-// MolinaX-Manager-Blueprint-v1.md §11.
-// Phase 0: belum ada modul aplikasi (app/, core-common/, feature-*).
+include(
+    ":app",
+    ":core-common",
+    ":feature-player",
+    ":feature-editor",
+    ":feature-terminal",
+    ":feature-utilities"
+)
