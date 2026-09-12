@@ -25,14 +25,23 @@ jobs:
         run: |
           yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
 
-      # Sesuai AGP 9.1.1 (mendukung resmi hingga API level 37.0):
-      # platform QPR baseline 37.0, bukan 37.1/37.2 yang belum diuji dengan AGP 9.1.1.
       - name: Install NDK 28.2.13676358, Build-Tools 37.0.0, Platform 37.0
         run: |
           "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
             "ndk;28.2.13676358" \
             "build-tools;37.0.0" \
-            "platforms;android-37.0"
+            "platforms;android-37.0" \
+            --verbose
+
+      - name: VERIFY packages actually installed on disk
+        run: |
+          echo "--- sdkmanager --list_installed ---"
+          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --list_installed
+          echo ""
+          echo "--- Checking directories on disk ---"
+          test -d "${ANDROID_SDK_ROOT}/ndk/28.2.13676358" && echo "NDK: OK ($(du -sh "${ANDROID_SDK_ROOT}/ndk/28.2.13676358" | cut -f1))" || (echo "NDK: MISSING" && exit 1)
+          test -d "${ANDROID_SDK_ROOT}/build-tools/37.0.0" && echo "Build-Tools 37.0.0: OK" || (echo "Build-Tools 37.0.0: MISSING" && exit 1)
+          test -d "${ANDROID_SDK_ROOT}/platforms/android-37.0" && echo "Platform 37.0: OK" || (echo "Platform 37.0: MISSING" && exit 1)
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
