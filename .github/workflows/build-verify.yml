@@ -25,20 +25,17 @@ jobs:
         run: |
           yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
 
+      # Sesuai AGP 9.1.1 (mendukung resmi hingga API level 37.0):
+      # platform QPR baseline 37.0, bukan 37.1/37.2 yang belum diuji dengan AGP 9.1.1.
       - name: Install NDK 28.2.13676358, Build-Tools 37.0.0, Platform 37.0
         run: |
           "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
             "ndk;28.2.13676358" \
             "build-tools;37.0.0" \
-            "platforms;android-37.0" \
-            --verbose
+            "platforms;android-37.0"
 
       - name: VERIFY packages actually installed on disk
         run: |
-          echo "--- sdkmanager --list_installed ---"
-          "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --list_installed
-          echo ""
-          echo "--- Checking directories on disk ---"
           test -d "${ANDROID_SDK_ROOT}/ndk/28.2.13676358" && echo "NDK: OK ($(du -sh "${ANDROID_SDK_ROOT}/ndk/28.2.13676358" | cut -f1))" || (echo "NDK: MISSING" && exit 1)
           test -d "${ANDROID_SDK_ROOT}/build-tools/37.0.0" && echo "Build-Tools 37.0.0: OK" || (echo "Build-Tools 37.0.0: MISSING" && exit 1)
           test -d "${ANDROID_SDK_ROOT}/platforms/android-37.0" && echo "Platform 37.0: OK" || (echo "Platform 37.0: MISSING" && exit 1)
@@ -46,5 +43,17 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Verify Gradle sync (Phase 0)
-        run: ./gradlew tasks --stacktrace
+      - name: Build debug APK (Phase 1 skeleton)
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: VERIFY APK actually exists on disk
+        run: |
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK_PATH" && echo "APK: OK ($(du -sh "$APK_PATH" | cut -f1))" || (echo "APK: MISSING at $APK_PATH" && find app/build/outputs -type f && exit 1)
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: molinax-manager-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
