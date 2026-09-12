@@ -43,7 +43,7 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build debug APK (Phase 1 skeleton)
+      - name: Build debug APK (App Host, Phase 1)
         run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: VERIFY APK actually exists on disk
@@ -56,4 +56,32 @@ jobs:
         with:
           name: molinax-manager-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Build terminal-emulator + terminal-view (Phase 2, termasuk native libtermux.so via NDK)
+        run: ./gradlew :feature-terminal:terminal-emulator:assembleDebug :feature-terminal:terminal-view:assembleDebug --stacktrace
+
+      - name: VERIFY AAR terminal-emulator & terminal-view actually exist on disk
+        run: |
+          EMULATOR_AAR="feature-terminal/terminal-emulator/build/outputs/aar/terminal-emulator-debug.aar"
+          VIEW_AAR="feature-terminal/terminal-view/build/outputs/aar/terminal-view-debug.aar"
+          test -f "$EMULATOR_AAR" && echo "terminal-emulator AAR: OK ($(du -sh "$EMULATOR_AAR" | cut -f1))" || (echo "terminal-emulator AAR: MISSING" && find feature-terminal/terminal-emulator/build/outputs -type f && exit 1)
+          test -f "$VIEW_AAR" && echo "terminal-view AAR: OK ($(du -sh "$VIEW_AAR" | cut -f1))" || (echo "terminal-view AAR: MISSING" && find feature-terminal/terminal-view/build/outputs -type f && exit 1)
+
+      - name: VERIFY libtermux.so nyata ter-compile untuk kedua ABI (arm64-v8a, armeabi-v7a)
+        run: |
+          mkdir -p /tmp/aar-check
+          unzip -o feature-terminal/terminal-emulator/build/outputs/aar/terminal-emulator-debug.aar -d /tmp/aar-check
+          echo "== Isi folder jni/ di dalam AAR =="
+          find /tmp/aar-check/jni -type f
+          test -f /tmp/aar-check/jni/arm64-v8a/libtermux.so && echo "libtermux.so arm64-v8a: OK" || (echo "libtermux.so arm64-v8a: MISSING" && exit 1)
+          test -f /tmp/aar-check/jni/armeabi-v7a/libtermux.so && echo "libtermux.so armeabi-v7a: OK" || (echo "libtermux.so armeabi-v7a: MISSING" && exit 1)
+
+      - name: Upload AAR artifacts (terminal-emulator, terminal-view)
+        uses: actions/upload-artifact@v4
+        with:
+          name: molinax-manager-terminal-aar
+          path: |
+            feature-terminal/terminal-emulator/build/outputs/aar/terminal-emulator-debug.aar
+            feature-terminal/terminal-view/build/outputs/aar/terminal-view-debug.aar
           if-no-files-found: error

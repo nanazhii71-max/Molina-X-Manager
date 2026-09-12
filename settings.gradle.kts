@@ -21,6 +21,7 @@ include(
     ":core-common",
     ":feature-player",
     ":feature-editor",
-    ":feature-terminal",
+    ":feature-terminal:terminal-emulator",
+    ":feature-terminal:terminal-view",
     ":feature-utilities"
 )
