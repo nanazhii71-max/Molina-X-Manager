@@ -72,6 +72,94 @@ jobs:
           file /tmp/ndk-smoke/hello-arm64.o | grep -q "aarch64" && echo "arm64.o arch aarch64: OK" || (echo "GAGAL: arm64.o bukan arch aarch64" && exit 1)
           file /tmp/ndk-smoke/hello-armv7.o | grep -qi "ARM" && echo "armv7.o arch ARM32: OK" || (echo "GAGAL: armv7.o bukan arch ARM32" && exit 1)
 
+      - name: "Phase 3 — Cross-compile libtalloc.a (dependency proot) untuk arm64-v8a & armeabi-v7a"
+        run: |
+          set -e
+          NDK="${ANDROID_SDK_ROOT}/ndk/28.2.13676358"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64"
+          API=26
+          TALLOC_VERSION=2.4.3
+          TALLOC_URL="https://www.samba.org/ftp/talloc/talloc-${TALLOC_VERSION}.tar.gz"
+          TALLOC_SHA256="dc46c40b9f46bb34dd97fe41f548b0e8b247b77a918576733c528e83abd854dd"
+          mkdir -p /tmp/libtalloc-build
+          cd /tmp/libtalloc-build
+          curl -fsSL "$TALLOC_URL" -o talloc.tar.gz
+          echo "$TALLOC_SHA256  talloc.tar.gz" | sha256sum -c -
+          build_one_abi() {
+          ABI_NAME="$1"
+          TARGET="$2"
+          rm -rf "src-$ABI_NAME"
+          mkdir -p "src-$ABI_NAME"
+          tar -xzf talloc.tar.gz -C "src-$ABI_NAME" --strip-components=1
+          cd "src-$ABI_NAME"
+          export CC="$TOOLCHAIN/bin/clang --target=$TARGET$API"
+          export AR="$TOOLCHAIN/bin/llvm-ar"
+          export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
+          export STRIP="$TOOLCHAIN/bin/llvm-strip"
+          export LD="$TOOLCHAIN/bin/ld"
+          echo "== [$ABI_NAME] cross-answers.txt =="
+          cat > cross-answers.txt << CROSSEOF
+          Checking uname sysname type: "Linux"
+          Checking uname machine type: "dontcare"
+          Checking uname release type: "dontcare"
+          Checking uname version type: "dontcare"
+          Checking simple C program: OK
+          building library support: OK
+          Checking for large file support: OK
+          Checking for -D_FILE_OFFSET_BITS=64: OK
+          Checking for WORDS_BIGENDIAN: OK
+          Checking for C99 vsnprintf: OK
+          Checking for HAVE_SECURE_MKSTEMP: OK
+          rpath library support: OK
+          -Wl,--version-script support: FAIL
+          Checking correct behavior of strtoll: OK
+          Checking correct behavior of strptime: OK
+          Checking for HAVE_IFACE_GETIFADDRS: OK
+          Checking for HAVE_IFACE_IFCONF: OK
+          Checking for HAVE_IFACE_IFREQ: OK
+          Checking getconf LFS_CFLAGS: OK
+          Checking for large file support without additional flags: OK
+          Checking for working strptime: OK
+          Checking for HAVE_SHARED_MMAP: OK
+          Checking for HAVE_MREMAP: OK
+          Checking for HAVE_INCOHERENT_MMAP: OK
+          Checking getconf large file support flags work: OK
+          CROSSEOF
+          echo "== [$ABI_NAME] configure =="
+          ./configure --prefix=/tmp/libtalloc-install-$ABI_NAME --disable-rpath --disable-python --cross-compile --cross-answers=cross-answers.txt
+          echo "== [$ABI_NAME] make =="
+          make V=1
+          echo "== [$ABI_NAME] verifikasi objek .o =="
+          ls -la bin/default/talloc*.o
+          cd bin/default
+          "$AR" rcu libtalloc.a talloc*.o
+          mkdir -p /tmp/libtalloc-out/$ABI_NAME
+          cp libtalloc.a /tmp/libtalloc-out/$ABI_NAME/libtalloc.a
+          cd /tmp/libtalloc-build
+          echo "== [$ABI_NAME] hasil akhir =="
+          file /tmp/libtalloc-out/$ABI_NAME/libtalloc.a
+          }
+          build_one_abi "arm64-v8a" "aarch64-linux-android"
+          build_one_abi "armeabi-v7a" "armv7a-linux-androideabi"
+
+      - name: "VERIFY libtalloc.a nyata untuk kedua ABI (bukan x86_64 host, arch benar)"
+        run: |
+          test -f /tmp/libtalloc-out/arm64-v8a/libtalloc.a && echo "arm64-v8a: ada" || (echo "MISSING arm64-v8a" && exit 1)
+          test -f /tmp/libtalloc-out/armeabi-v7a/libtalloc.a && echo "armeabi-v7a: ada" || (echo "MISSING armeabi-v7a" && exit 1)
+          file /tmp/libtalloc-out/arm64-v8a/libtalloc.a
+          file /tmp/libtalloc-out/armeabi-v7a/libtalloc.a
+          file /tmp/libtalloc-out/arm64-v8a/libtalloc.a | grep -qi "x86-64" && (echo "GAGAL arm64-v8a x86-64" && exit 1) || echo "arm64-v8a bukan x86-64: OK"
+          file /tmp/libtalloc-out/armeabi-v7a/libtalloc.a | grep -qi "x86-64" && (echo "GAGAL armeabi-v7a x86-64" && exit 1) || echo "armeabi-v7a bukan x86-64: OK"
+
+      - name: Upload libtalloc.a artifacts (Phase 3, dependency proot)
+        uses: actions/upload-artifact@v4
+        with:
+          name: molinax-manager-libtalloc
+          path: |
+            /tmp/libtalloc-out/arm64-v8a/libtalloc.a
+            /tmp/libtalloc-out/armeabi-v7a/libtalloc.a
+          if-no-files-found: error
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
