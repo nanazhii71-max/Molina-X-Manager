@@ -40,6 +40,38 @@ jobs:
           test -d "${ANDROID_SDK_ROOT}/build-tools/37.0.0" && echo "Build-Tools 37.0.0: OK" || (echo "Build-Tools 37.0.0: MISSING" && exit 1)
           test -d "${ANDROID_SDK_ROOT}/platforms/android-37.0" && echo "Platform 37.0: OK" || (echo "Platform 37.0: MISSING" && exit 1)
 
+      - name: "Phase 3 prasyarat — Smoke-test toolchain NDK cross-compile murni (arm64-v8a & armeabi-v7a)"
+        run: |
+          NDK="${ANDROID_SDK_ROOT}/ndk/28.2.13676358"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64"
+          API=26
+          mkdir -p /tmp/ndk-smoke
+          cat > /tmp/ndk-smoke/hello.c << 'CEOF'
+          int main(void) { return 0; }
+          CEOF
+
+          echo "== Verifikasi binary toolchain ada dan executable =="
+          test -x "$TOOLCHAIN/bin/clang" && echo "clang: OK" || (echo "clang: MISSING" && exit 1)
+          test -x "$TOOLCHAIN/bin/llvm-ar" && echo "llvm-ar: OK" || (echo "llvm-ar: MISSING" && exit 1)
+          test -x "$TOOLCHAIN/bin/llvm-ranlib" && echo "llvm-ranlib: OK" || (echo "llvm-ranlib: MISSING" && exit 1)
+          test -x "$TOOLCHAIN/bin/llvm-strip" && echo "llvm-strip: OK" || (echo "llvm-strip: MISSING" && exit 1)
+
+          echo "== Compile arm64-v8a (target aarch64-linux-android$API) =="
+          "$TOOLCHAIN/bin/clang" --target=aarch64-linux-android$API -c /tmp/ndk-smoke/hello.c -o /tmp/ndk-smoke/hello-arm64.o
+          file /tmp/ndk-smoke/hello-arm64.o
+
+          echo "== Compile armeabi-v7a (target armv7a-linux-androideabi$API) =="
+          "$TOOLCHAIN/bin/clang" --target=armv7a-linux-androideabi$API -c /tmp/ndk-smoke/hello.c -o /tmp/ndk-smoke/hello-armv7.o
+          file /tmp/ndk-smoke/hello-armv7.o
+
+          echo "== Pastikan BUKAN diam-diam ke-compile jadi x86_64 host (kegagalan paling umum) =="
+          file /tmp/ndk-smoke/hello-arm64.o | grep -q "x86-64" && (echo "GAGAL: hello-arm64.o malah x86-64!" && exit 1) || echo "arm64.o bukan x86-64: OK"
+          file /tmp/ndk-smoke/hello-armv7.o | grep -q "x86-64" && (echo "GAGAL: hello-armv7.o malah x86-64!" && exit 1) || echo "armv7.o bukan x86-64: OK"
+
+          echo "== Pastikan arch benar-benar ARM =="
+          file /tmp/ndk-smoke/hello-arm64.o | grep -q "aarch64" && echo "arm64.o arch aarch64: OK" || (echo "GAGAL: arm64.o bukan arch aarch64" && exit 1)
+          file /tmp/ndk-smoke/hello-armv7.o | grep -qi "ARM" && echo "armv7.o arch ARM32: OK" || (echo "GAGAL: armv7.o bukan arch ARM32" && exit 1)
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
