@@ -142,14 +142,30 @@ jobs:
           build_one_abi "arm64-v8a" "aarch64-linux-android"
           build_one_abi "armeabi-v7a" "armv7a-linux-androideabi"
 
-      - name: "VERIFY libtalloc.a nyata untuk kedua ABI (bukan x86_64 host, arch benar)"
+      - name: "VERIFY libtalloc.a nyata untuk kedua ABI (ekstrak objek, cek arch ELF sebenarnya)"
         run: |
+          set -e
           test -f /tmp/libtalloc-out/arm64-v8a/libtalloc.a && echo "arm64-v8a: ada" || (echo "MISSING arm64-v8a" && exit 1)
           test -f /tmp/libtalloc-out/armeabi-v7a/libtalloc.a && echo "armeabi-v7a: ada" || (echo "MISSING armeabi-v7a" && exit 1)
-          file /tmp/libtalloc-out/arm64-v8a/libtalloc.a
-          file /tmp/libtalloc-out/armeabi-v7a/libtalloc.a
-          file /tmp/libtalloc-out/arm64-v8a/libtalloc.a | grep -qi "x86-64" && (echo "GAGAL arm64-v8a x86-64" && exit 1) || echo "arm64-v8a bukan x86-64: OK"
-          file /tmp/libtalloc-out/armeabi-v7a/libtalloc.a | grep -qi "x86-64" && (echo "GAGAL armeabi-v7a x86-64" && exit 1) || echo "armeabi-v7a bukan x86-64: OK"
+          verify_abi() {
+          ABI_NAME="$1"
+          EXPECT_ARCH="$2"
+          mkdir -p /tmp/libtalloc-verify-$ABI_NAME
+          cd /tmp/libtalloc-verify-$ABI_NAME
+          "${ANDROID_SDK_ROOT}/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar" x /tmp/libtalloc-out/$ABI_NAME/libtalloc.a
+          echo "== [$ABI_NAME] daftar objek hasil ekstrak =="
+          ls -la
+          test -n "$(ls *.o 2>/dev/null)" || (echo "GAGAL [$ABI_NAME]: tidak ada file .o di dalam archive" && exit 1)
+          for OBJFILE in *.o; do
+          echo "-- $OBJFILE --"
+          file "$OBJFILE"
+          file "$OBJFILE" | grep -qi "x86-64" && (echo "GAGAL [$ABI_NAME] $OBJFILE malah x86-64" && exit 1) || true
+          file "$OBJFILE" | grep -qi "$EXPECT_ARCH" || (echo "GAGAL [$ABI_NAME] $OBJFILE bukan arch $EXPECT_ARCH" && exit 1)
+          done
+          echo "== [$ABI_NAME] semua objek terverifikasi arch $EXPECT_ARCH =="
+          }
+          verify_abi "arm64-v8a" "aarch64"
+          verify_abi "armeabi-v7a" "ARM"
 
       - name: Upload libtalloc.a artifacts (Phase 3, dependency proot)
         uses: actions/upload-artifact@v4
