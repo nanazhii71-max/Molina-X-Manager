@@ -176,6 +176,87 @@ jobs:
             /tmp/libtalloc-out/armeabi-v7a/libtalloc.a
           if-no-files-found: error
 
+      - name: "Phase 3 — Cross-compile proot (link static ke libtalloc.a) untuk arm64-v8a & armeabi-v7a"
+        run: |
+          set -e
+          NDK="${ANDROID_SDK_ROOT}/ndk/28.2.13676358"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64"
+          API=26
+          PROOT_COMMIT=1f4ec1c9d3fcc5d44c2a252eda6d09b0c24928cd
+          PROOT_URL="https://github.com/termux/proot/archive/${PROOT_COMMIT}.zip"
+          PROOT_SHA256="1119f1d27ca7a655eb627ad227fbd9c7a0343ea988dad3ed620fd6cd98723c20"
+          mkdir -p /tmp/proot-build
+          cd /tmp/proot-build
+          curl -fsSL "$PROOT_URL" -o proot.zip
+          echo "$PROOT_SHA256  proot.zip" | sha256sum -c -
+          build_proot_one_abi() {
+          ABI_NAME="$1"
+          TARGET="$2"
+          rm -rf "src-$ABI_NAME" pc-$ABI_NAME
+          mkdir -p "src-$ABI_NAME" "pc-$ABI_NAME"
+          unzip -q proot.zip -d "extract-$ABI_NAME"
+          SRCDIR=$(find "extract-$ABI_NAME" -maxdepth 1 -mindepth 1 -type d | head -1)
+          cp -r "$SRCDIR"/. "src-$ABI_NAME"/
+          TALLOC_INCLUDE="/tmp/libtalloc-build/src-$ABI_NAME"
+          TALLOC_LIBDIR="/tmp/libtalloc-out/$ABI_NAME"
+          test -f "$TALLOC_INCLUDE/talloc.h" || (echo "GAGAL [$ABI_NAME]: talloc.h tidak ditemukan di $TALLOC_INCLUDE" && exit 1)
+          test -f "$TALLOC_LIBDIR/libtalloc.a" || (echo "GAGAL [$ABI_NAME]: libtalloc.a tidak ditemukan di $TALLOC_LIBDIR" && exit 1)
+          printf "prefix=%s\nexec_prefix=%s\nlibdir=%s\nincludedir=%s\n\nName: talloc\nDescription: talloc\nVersion: 2.4.3\nLibs: -L%s -ltalloc\nCflags: -I%s\n" "$TALLOC_LIBDIR" "$TALLOC_LIBDIR" "$TALLOC_LIBDIR" "$TALLOC_INCLUDE" "$TALLOC_LIBDIR" "$TALLOC_INCLUDE" > "pc-$ABI_NAME/talloc.pc"
+          echo "== [$ABI_NAME] isi talloc.pc =="
+          cat "pc-$ABI_NAME/talloc.pc"
+          export PKG_CONFIG_PATH="/tmp/proot-build/pc-$ABI_NAME"
+          echo "== [$ABI_NAME] verifikasi pkg-config menemukan talloc =="
+          pkg-config --cflags talloc
+          pkg-config --libs talloc
+          cd "src-$ABI_NAME"
+          echo "== [$ABI_NAME] patch P_tmpdir (persis recipe resmi) =="
+          sed -i "s/P_tmpdir/\"\/tmp\"/g" src/path/temp.c
+          grep -n "P_tmpdir\|/tmp" src/path/temp.c | head -5
+          export CC="$TOOLCHAIN/bin/clang --target=$TARGET$API"
+          export AR="$TOOLCHAIN/bin/llvm-ar"
+          export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
+          export STRIP="$TOOLCHAIN/bin/llvm-strip"
+          export CPPFLAGS="-DARG_MAX=131072"
+          export LDFLAGS="-static"
+          echo "== [$ABI_NAME] make V=1 =="
+          cd src
+          make V=1
+          test -f proot || (echo "GAGAL [$ABI_NAME]: binary proot tidak dihasilkan" && exit 1)
+          "$STRIP" proot
+          mkdir -p /tmp/proot-out/$ABI_NAME
+          cp proot /tmp/proot-out/$ABI_NAME/proot
+          cd /tmp/proot-build
+          echo "== [$ABI_NAME] hasil akhir =="
+          file /tmp/proot-out/$ABI_NAME/proot
+          }
+          build_proot_one_abi "arm64-v8a" "aarch64-linux-android"
+          build_proot_one_abi "armeabi-v7a" "armv7a-linux-androideabi"
+
+      - name: "VERIFY binary proot nyata untuk kedua ABI (ELF ARM, statis, bukan x86_64)"
+        run: |
+          set -e
+          for ABI in arm64-v8a armeabi-v7a; do
+          BIN="/tmp/proot-out/$ABI/proot"
+          test -f "$BIN" || (echo "MISSING $ABI" && exit 1)
+          echo "-- $ABI --"
+          file "$BIN"
+          file "$BIN" | grep -qi "x86-64" && (echo "GAGAL [$ABI]: proot malah x86-64" && exit 1) || echo "$ABI bukan x86-64: OK"
+          file "$BIN" | grep -qi "statically linked" || (echo "GAGAL [$ABI]: proot bukan statically linked" && exit 1)
+          echo "$ABI statically linked: OK"
+          done
+          file /tmp/proot-out/arm64-v8a/proot | grep -qi "aarch64" || (echo "GAGAL: arm64-v8a bukan aarch64" && exit 1)
+          file /tmp/proot-out/armeabi-v7a/proot | grep -qi "ARM" || (echo "GAGAL: armeabi-v7a bukan ARM" && exit 1)
+          echo "Semua verifikasi proot lolos."
+
+      - name: Upload proot binary artifacts (Phase 3)
+        uses: actions/upload-artifact@v4
+        with:
+          name: molinax-manager-proot
+          path: |
+            /tmp/proot-out/arm64-v8a/proot
+            /tmp/proot-out/armeabi-v7a/proot
+          if-no-files-found: error
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
