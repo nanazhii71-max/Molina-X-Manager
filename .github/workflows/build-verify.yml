@@ -346,3 +346,35 @@ jobs:
           name: molinax-manager-feature-terminal-aar
           path: feature-terminal/build/outputs/aar/feature-terminal-debug.aar
           if-no-files-found: error
+
+      - name: "Phase 3 — Build feature-terminal:runtime (modul rootfs manifest, blueprint §8.4)"
+        run: ./gradlew :feature-terminal:runtime:assembleDebug --stacktrace
+
+      - name: VERIFY AAR feature-terminal:runtime actually exists on disk
+        run: |
+          RUNTIME_AAR="feature-terminal/runtime/build/outputs/aar/runtime-debug.aar"
+          test -f "$RUNTIME_AAR" && echo "feature-terminal:runtime AAR: OK ($(du -sh "$RUNTIME_AAR" | cut -f1))" || (echo "feature-terminal:runtime AAR: MISSING" && find feature-terminal/runtime/build/outputs -type f && exit 1)
+
+      - name: "Phase 3 — Jalankan unit test RootfsManifest (verifikasi data pin, bukan cuma compile)"
+        run: ./gradlew :feature-terminal:runtime:testDebugUnitTest --stacktrace
+
+      - name: VERIFY hasil unit test RootfsManifest nyata (0 failures, bukan cuma exit code gradle)
+        run: |
+          RESULT_XML=$(find feature-terminal/runtime/build/test-results/testDebugUnitTest -name "TEST-*.xml")
+          test -n "$RESULT_XML" || (echo "GAGAL: tidak ada file hasil test XML ditemukan" && exit 1)
+          echo "== File hasil test ditemukan =="
+          echo "$RESULT_XML"
+          for f in $RESULT_XML; do
+            echo "-- $f --"
+            cat "$f"
+            grep -o 'failures="[0-9]*"' "$f" | grep -q 'failures="0"' || (echo "GAGAL: ada test failure di $f" && exit 1)
+            grep -o 'errors="[0-9]*"' "$f" | grep -q 'errors="0"' || (echo "GAGAL: ada test error di $f" && exit 1)
+          done
+          echo "Semua unit test RootfsManifest lolos (0 failures, 0 errors)."
+
+      - name: Upload AAR artifact (feature-terminal:runtime)
+        uses: actions/upload-artifact@v4
+        with:
+          name: molinax-manager-feature-terminal-runtime-aar
+          path: feature-terminal/runtime/build/outputs/aar/runtime-debug.aar
+          if-no-files-found: error

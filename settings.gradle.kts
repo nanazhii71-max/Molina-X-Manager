@@ -24,5 +24,6 @@ include(
     ":feature-terminal",
     ":feature-terminal:terminal-emulator",
     ":feature-terminal:terminal-view",
+    ":feature-terminal:runtime",
     ":feature-utilities"
 )
