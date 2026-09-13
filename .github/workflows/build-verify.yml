@@ -259,6 +259,18 @@ jobs:
             /tmp/proot-out/armeabi-v7a/proot
           if-no-files-found: error
 
+      - name: "Phase 3 — Salin binary proot ke feature-terminal jniLibs (Opsi A: bundling via jniLibs)"
+        run: |
+          set -e
+          mkdir -p feature-terminal/src/main/jniLibs/arm64-v8a
+          mkdir -p feature-terminal/src/main/jniLibs/armeabi-v7a
+          cp /tmp/proot-out/arm64-v8a/proot feature-terminal/src/main/jniLibs/arm64-v8a/libproot.so
+          cp /tmp/proot-out/armeabi-v7a/proot feature-terminal/src/main/jniLibs/armeabi-v7a/libproot.so
+          chmod 755 feature-terminal/src/main/jniLibs/arm64-v8a/libproot.so
+          chmod 755 feature-terminal/src/main/jniLibs/armeabi-v7a/libproot.so
+          echo "== isi jniLibs feature-terminal =="
+          find feature-terminal/src/main/jniLibs -type f -exec ls -la {} \;
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
@@ -303,4 +315,34 @@ jobs:
           path: |
             feature-terminal/terminal-emulator/build/outputs/aar/terminal-emulator-debug.aar
             feature-terminal/terminal-view/build/outputs/aar/terminal-view-debug.aar
+          if-no-files-found: error
+
+      - name: "Phase 3 — Build feature-terminal (verifikasi settings.gradle.kts + jniLibs proot)"
+        run: ./gradlew :feature-terminal:assembleDebug --stacktrace
+
+      - name: VERIFY AAR feature-terminal actually exists on disk
+        run: |
+          FEATURE_TERMINAL_AAR="feature-terminal/build/outputs/aar/feature-terminal-debug.aar"
+          test -f "$FEATURE_TERMINAL_AAR" && echo "feature-terminal AAR: OK ($(du -sh "$FEATURE_TERMINAL_AAR" | cut -f1))" || (echo "feature-terminal AAR: MISSING" && find feature-terminal/build/outputs -type f && exit 1)
+
+      - name: "VERIFY libproot.so nyata ter-bundle di AAR feature-terminal untuk kedua ABI"
+        run: |
+          mkdir -p /tmp/aar-check-proot
+          unzip -o feature-terminal/build/outputs/aar/feature-terminal-debug.aar -d /tmp/aar-check-proot
+          echo "== Isi folder jni/ di dalam AAR feature-terminal =="
+          find /tmp/aar-check-proot/jni -type f
+          test -f /tmp/aar-check-proot/jni/arm64-v8a/libproot.so && echo "libproot.so arm64-v8a: OK" || (echo "libproot.so arm64-v8a: MISSING" && exit 1)
+          test -f /tmp/aar-check-proot/jni/armeabi-v7a/libproot.so && echo "libproot.so armeabi-v7a: OK" || (echo "libproot.so armeabi-v7a: MISSING" && exit 1)
+          echo "== VERIFY arch nyata libproot.so (bukan cuma nama file) =="
+          file /tmp/aar-check-proot/jni/arm64-v8a/libproot.so
+          file /tmp/aar-check-proot/jni/arm64-v8a/libproot.so | grep -qi "aarch64" || (echo "GAGAL: libproot.so arm64-v8a bukan aarch64" && exit 1)
+          file /tmp/aar-check-proot/jni/armeabi-v7a/libproot.so
+          file /tmp/aar-check-proot/jni/armeabi-v7a/libproot.so | grep -qi "ARM" || (echo "GAGAL: libproot.so armeabi-v7a bukan ARM" && exit 1)
+          echo "Semua verifikasi libproot.so di AAR feature-terminal lolos."
+
+      - name: Upload AAR artifact (feature-terminal)
+        uses: actions/upload-artifact@v4
+        with:
+          name: molinax-manager-feature-terminal-aar
+          path: feature-terminal/build/outputs/aar/feature-terminal-debug.aar
           if-no-files-found: error

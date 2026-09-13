@@ -30,6 +30,17 @@ android {
         }
     }
 
+    // proot dibundel sebagai "libproot.so" via feature-terminal/src/main/jniLibs/<abi>/
+    // agar diekstrak jadi file fisik executable di nativeLibraryDir saat instalasi
+    // (bukan cuma di-mmap dari dalam APK) — proot dieksekusi sebagai subprocess nyata,
+    // bukan dimuat sebagai shared library lewat dlopen/System.loadLibrary.
+    // Referensi resmi: developer.android.com/reference/tools/gradle-api .../dsl/JniLibsPackaging
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     kotlin {
         jvmToolchain(rootProject.extra["molinaxJvmToolchain"] as Int)
     }
