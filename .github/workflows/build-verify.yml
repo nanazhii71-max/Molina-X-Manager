@@ -216,8 +216,8 @@ jobs:
           export AR="$TOOLCHAIN/bin/llvm-ar"
           export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
           export STRIP="$TOOLCHAIN/bin/llvm-strip"
-          export CPPFLAGS="-DARG_MAX=131072"
-          export LDFLAGS="-static"
+          export CPPFLAGS="-DARG_MAX=131072 -I$TALLOC_INCLUDE"
+          export LDFLAGS="-static -L$TALLOC_LIBDIR -ltalloc"
           echo "== [$ABI_NAME] make V=1 =="
           cd src
           make V=1
